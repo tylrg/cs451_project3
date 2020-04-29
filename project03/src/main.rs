@@ -28,20 +28,15 @@ fn main() -> Result<(), StegError> {
         return Ok(())
     }
     
-
     match args.len() {
         3 => {
-            
             
             let thread_count = thread_count.parse::<usize>().unwrap();//parse usize from thread count
 
             //path from second argument 
             let path_string = args[2].to_string();//read from this directory
             let path = Path::new(&path_string);// path from directory
-            //eprintln!("Input Path: {:?}", path);
-            //let current_dir = env::current_dir().expect("Current directory not found!");
-            //eprintln!("Current Directory {:?}", current_dir);
-            
+
             //vector for storing threads also mpsc channels
             let mut handles = vec![];
             let (sender, receiver) = mpsc::channel();
@@ -49,8 +44,7 @@ fn main() -> Result<(), StegError> {
             //list of files
             let mut file_list: Vec<PathBuf> = Vec::new();
             
-
-            let mut num_files = 0;
+            let mut num_files = 0;//number of files
             //sorting for only ppm files
             for entry in fs::read_dir(path).expect("Path not found!") {
                 let entry = entry.expect("Valid entry not found!");
@@ -61,8 +55,6 @@ fn main() -> Result<(), StegError> {
                 }
                 
             }
-            //eprintln!("Number of files: {}",num_files);
-
 
             //for each thread
             for i in 0..thread_count{
@@ -75,25 +67,18 @@ fn main() -> Result<(), StegError> {
                 let start =  interval*i; //determine start index for this threads jobs
                 let mut last_index = start+interval; //set last index as interval distance from start
                 if last_index>=file_list.len()-1 {last_index=file_list.len()-1;} // if last is greater than number of files, set to number of files -1
-                //println!("Interval: {}",interval);
-                //eprintln! ("Start and Last Index for Thread {}: {}-{}",i,start,last_index);
                 
-                
-                
-
                 let mut counter = start;//counter for which job to add
 
                 //until the job list is of properlength(), add jobs
                 while job_list.len()<interval{
                     if counter >= last_index {break;}//if counter is greater than index, dont' add
-                    //eprintln!("Thread: {} is getting {}, responsible for {}/{}",i,counter,start,last_index-1);
                     job_list.push(file_list[counter].clone().into_os_string().into_string().unwrap());//push the path to the job list
                     counter+=1;//increment
                 }
 
                 //spawn a thread
                 let handle = thread::spawn(move||{
-                    //eprintln!("Created thread: {} with {} jobs",i,job_list.len());
 
                     //while jobs are remaining
                     while job_list.len()!=0{
@@ -104,33 +89,24 @@ fn main() -> Result<(), StegError> {
                             Err(err) => panic!("Error: {:?}", err),
                          };
                         let decoded:String = decode_message(&ppm.pixels).unwrap();//decode the string
-                        //eprintln!("Thread {} decoded: {} ",i,&decoded[0..10]);
                         let payload = (job_list[job_list.len()-1].clone(),decoded);//create file and decoded message for payload
                         tx.send(payload).unwrap();//send the payload
                         job_list.pop();//take the job off the list
                     }
                 });
-                
                 handles.push(handle);//add the thread to the group of handles
-
             }
 
 
             //vector of return values, for each file wait for decoded message and add to vector
             let mut returns = Vec::new();
             for _handle in 0..num_files-1 {
-                //eprintln!("Recieved file #{}",handle);
                 let value = receiver.recv().unwrap();
                 returns.push(value.clone());
             }
 
-            
             //wait for each thread
-            for thread in handles{
-                //eprintln!("Thread {:?} finished",thread);
-                thread.join().unwrap();
-            }
-            //eprintln!("Returned items {}",returns.len());
+            for thread in handles{thread.join().unwrap();}
 
             let mut final_string: String = String::from("");//output string
             returns.sort();//sort the returns by file name
@@ -149,6 +125,7 @@ fn decode_message(pixels: &Vec<u8>) -> Result<String, StegError> {
 
     for mut bytes in pixels.chunks(8) {
         // eprintln!("chunk!");
+        //i had to at this i know there is loss of data/extra data
         let base = [20,20,20,20,20,20,20,20];//space for printing
         if bytes.len() < 8 {
             //panic!("There were less than 8 bytes in chunk");
